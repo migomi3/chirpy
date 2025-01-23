@@ -21,9 +21,9 @@ func main() {
 	cfg := apiConfig{}
 	cfg.fileserverHits.Store(0)
 
-	mux.HandleFunc("/reset", cfg.resetHandler)
-	mux.HandleFunc("/metrics", cfg.metricsHandler)
-	mux.HandleFunc("/healthz", healthEndpointHandler)
+	mux.HandleFunc("POST /reset", cfg.resetHandler)
+	mux.HandleFunc("GET /metrics", cfg.metricsHandler)
+	mux.HandleFunc("GET /healthz", healthEndpointHandler)
 	mux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir("./")))))
 
 	err := server.ListenAndServe()
