@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/migomi3/internal/database"
 )
 
 func (cfg *apiConfig) healthEndpointHandler(w http.ResponseWriter, r *http.Request) {
@@ -37,18 +39,11 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 	cfg.db.ClearUsers(r.Context())
 }
 
-func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
-	}
-	type returnVals struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
+func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := database.CreateChirpParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
@@ -62,11 +57,13 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Reques
 
 	params.Body = cleanMessage(params.Body)
 
-	respBody := returnVals{
-		CleanedBody: params.Body,
+	chirp, err := cfg.db.CreateChirp(r.Context(), params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
+		return
 	}
 
-	respondWithJSON(w, http.StatusOK, respBody)
+	respondWithJSON(w, http.StatusCreated, chirp)
 }
 
 func (cfg *apiConfig) usersHandler(w http.ResponseWriter, r *http.Request) {
