@@ -11,12 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-const clearchirps = `-- name: Clearchirps :exec
+const clearChirps = `-- name: ClearChirps :exec
 DELETE FROM chirps
 `
 
-func (q *Queries) Clearchirps(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, clearchirps)
+func (q *Queries) ClearChirps(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearChirps)
 	return err
 }
 
@@ -26,6 +26,7 @@ VALUES (gen_random_uuid(), Now(), Now(), $1, $2)
 RETURNING id, created_at, updated_at, body, user_id
 `
 
+//adding json here to avoid making redundant structs
 type CreateChirpParams struct {
 	Body   string `json:"body"`
 	UserID uuid.UUID `json:"user_id"`
@@ -42,4 +43,39 @@ func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp
 		&i.UserID,
 	)
 	return i, err
+}
+
+const getChirps = `-- name: GetChirps :many
+SELECT id, created_at, updated_at, body, user_id
+FROM chirps
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetChirps(ctx context.Context) ([]Chirp, error) {
+	rows, err := q.db.QueryContext(ctx, getChirps)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chirp
+	for rows.Next() {
+		var i Chirp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Body,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

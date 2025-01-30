@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -36,9 +37,10 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 func cleanMessage(body string) string {
 	content := strings.Split(body, " ")
+	badWords := []string{"kerfuffle", "sharbert", "fornax"}
 
 	for i, word := range content {
-		if strings.ToLower(word) == "kerfuffle" || strings.ToLower(word) == "sharbert" || strings.ToLower(word) == "fornax" {
+		if slices.Contains(badWords, strings.ToLower(word)) {
 			content[i] = "****"
 		}
 	}
