@@ -7,8 +7,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/migomi3/internal/auth"
 	"github.com/migomi3/internal/database"
 )
+
+type loginParameters struct {
+	Password string `json:"password"`
+	Email    string `json:"email"`
+}
 
 func (cfg *apiConfig) healthEndpointHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -68,24 +74,32 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) usersHandler(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Email string `json:"email"`
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := database.CreateUserParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
 		return
 	}
 
-	user, err := cfg.db.CreateUser(r.Context(), params.Email)
+	params.HashedPassword, err = auth.HashPassword(params.HashedPassword)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Password Hashing failed", err)
+	}
+
+	u, err := cfg.db.CreateUser(r.Context(), params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating user", err)
 		return
+	}
+
+	user := User{
+		ID:        u.ID,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+		Email:     u.Email,
 	}
 
 	respondWithJSON(w, http.StatusCreated, user)
@@ -113,4 +127,37 @@ func (cfg *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, chirp)
+}
+
+func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	decoder := json.NewDecoder(r.Body)
+	params := loginParameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
+		return
+	}
+
+	u, err := cfg.db.GetUser(r.Context(), params.Email)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "user not found", err)
+		return
+	}
+
+	err = auth.CheckPasswordHash(params.Password, u.HashedPassword)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
+		return
+	}
+
+	user := User{
+		ID:        u.ID,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+		Email:     u.Email,
+	}
+
+	respondWithJSON(w, http.StatusOK, user)
 }

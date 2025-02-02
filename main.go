@@ -39,6 +39,7 @@ func main() {
 	}
 	cfg.fileserverHits.Store(0)
 
+	mux.HandleFunc("POST /api/login", cfg.loginHandler)
 	mux.HandleFunc("POST /api/users", cfg.usersHandler)
 	mux.HandleFunc("POST /api/chirps", cfg.chirpsHandler)
 	mux.HandleFunc("GET /api/chirps", cfg.getChirpsHandler)
