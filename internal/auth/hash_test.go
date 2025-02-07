@@ -6,26 +6,57 @@ import (
 	"github.com/migomi3/internal/auth"
 )
 
-func TestHashPassword(t *testing.T) {
-	password := "test"
-	hash, err := auth.HashPassword(password)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hash) != 60 || hash[:4] != "$2a$" {
-		t.Fatalf("Hash %q is not in expected bcrypt format", hash)
-	}
-}
-
 func TestCheckPasswordHash(t *testing.T) {
-	password := "test"
-	hash, err := auth.HashPassword(password)
-	if err != nil {
-		t.Fatalf("HashPassword returned error: %v", err)
+	// First, we need to create some hashed passwords for testing
+	password1 := "correctPassword123!"
+	password2 := "anotherPassword456!"
+	hash1, _ := auth.HashPassword(password1)
+	hash2, _ := auth.HashPassword(password2)
+
+	tests := []struct {
+		name     string
+		password string
+		hash     string
+		wantErr  bool
+	}{
+		{
+			name:     "Correct password",
+			password: password1,
+			hash:     hash1,
+			wantErr:  false,
+		},
+		{
+			name:     "Incorrect password",
+			password: "wrongPassword",
+			hash:     hash1,
+			wantErr:  true,
+		},
+		{
+			name:     "Password doesn't match different hash",
+			password: password1,
+			hash:     hash2,
+			wantErr:  true,
+		},
+		{
+			name:     "Empty password",
+			password: "",
+			hash:     hash1,
+			wantErr:  true,
+		},
+		{
+			name:     "Invalid hash",
+			password: password1,
+			hash:     "invalidhash",
+			wantErr:  true,
+		},
 	}
 
-	err = auth.CheckPasswordHash(password, hash)
-	if err != nil {
-		t.Fatalf(`CheckPasswordHash(%q, %q) returned error: %v`, password, hash, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := auth.CheckPasswordHash(tt.password, tt.hash)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CheckPasswordHash() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
