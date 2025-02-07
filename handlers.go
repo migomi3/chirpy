@@ -5,16 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/migomi3/internal/auth"
 	"github.com/migomi3/internal/database"
 )
-
-type loginParameters struct {
-	Password string `json:"password"`
-	Email    string `json:"email"`
-}
 
 func (cfg *apiConfig) healthEndpointHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -49,16 +45,33 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
+	}
+
 	decoder := json.NewDecoder(r.Body)
-	params := database.CreateChirpParams{}
-	err := decoder.Decode(&params)
+	requestBody := struct {
+		Body string `json:"body"`
+	}{}
+	err = decoder.Decode(&requestBody)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
 		return
 	}
 
+	id, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
+	}
+
+	params := database.CreateChirpParams{
+		Body:   requestBody.Body,
+		UserID: id,
+	}
+
 	if len(params.Body) > 140 {
-		respondWithError(w, http.StatusBadRequest, "Message exceed character limit", err)
+		respondWithError(w, http.StatusBadRequest, "Message exceeds character limit", err)
 		return
 	}
 
@@ -133,22 +146,37 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
-	params := loginParameters{}
-	err := decoder.Decode(&params)
+	loginParams := struct {
+		Password         string `json:"password"`
+		Email            string `json:"email"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
+	}{}
+	err := decoder.Decode(&loginParams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
 		return
 	}
 
-	u, err := cfg.db.GetUser(r.Context(), params.Email)
+	u, err := cfg.db.GetUser(r.Context(), loginParams.Email)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "user not found", err)
 		return
 	}
 
-	err = auth.CheckPasswordHash(params.Password, u.HashedPassword)
+	err = auth.CheckPasswordHash(loginParams.Password, u.HashedPassword)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
+		return
+	}
+
+	duration := time.Hour
+	if loginParams.ExpiresInSeconds > 0 && loginParams.ExpiresInSeconds < 3600 {
+		duration = time.Duration(loginParams.ExpiresInSeconds) * time.Second
+	}
+
+	tokenString, err := auth.MakeJWT(u.ID, cfg.secret, duration)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error Creating JWT", err)
 		return
 	}
 
@@ -157,6 +185,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 		Email:     u.Email,
+		Token:     tokenString,
 	}
 
 	respondWithJSON(w, http.StatusOK, user)
