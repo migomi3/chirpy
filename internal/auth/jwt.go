@@ -17,12 +17,12 @@ const (
 	TokenTypeAccess TokenType = "chirpy-access"
 )
 
-func MakeJWT(serID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
+func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    string(TokenTypeAccess),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiresIn)),
-		Subject:   serID.String(),
+		Subject:   userID.String(),
 	})
 
 	return token.SignedString([]byte(tokenSecret))
@@ -60,10 +60,15 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 }
 
 func GetBearerToken(headers http.Header) (string, error) {
-	val := headers.Get("Authorization")
-	if val == "" {
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" {
 		return "", errors.New("no Authorization header found")
 	}
 
-	return strings.Trim(val[6:], " "), nil
+	splitAuth := strings.Split(authHeader, " ")
+	if len(splitAuth) < 2 || splitAuth[0] != "Bearer" {
+		return "", errors.New("malformed authorization header")
+	}
+
+	return splitAuth[1], nil
 }

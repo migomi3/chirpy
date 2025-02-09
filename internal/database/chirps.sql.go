@@ -28,8 +28,8 @@ RETURNING id, created_at, updated_at, body, user_id
 
 //adding json here to avoid making redundant structs
 type CreateChirpParams struct {
-	Body   string `json:"body"`
-	UserID uuid.UUID `json:"user_id"`
+	Body   string
+	UserID uuid.UUID
 }
 
 func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp, error) {

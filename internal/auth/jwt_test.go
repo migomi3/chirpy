@@ -58,25 +58,46 @@ func TestValidateJWT(t *testing.T) {
 }
 
 func TestGetBearerToken(t *testing.T) {
-	header := http.Header{}
-
 	tests := []struct {
-		input          []string
-		expectedOutput string
+		name      string
+		headers   http.Header
+		wantToken string
+		wantErr   bool
 	}{
-		{[]string{"Authorization", "Bearer testing"}, "testing"},
-		{[]string{"Authorization", "Bearer   gaerighuhi  "}, "gaerighuhi"},
+		{
+			name: "Valid Bearer token",
+			headers: http.Header{
+				"Authorization": []string{"Bearer valid_token"},
+			},
+			wantToken: "valid_token",
+			wantErr:   false,
+		},
+		{
+			name:      "Missing Authorization header",
+			headers:   http.Header{},
+			wantToken: "",
+			wantErr:   true,
+		},
+		{
+			name: "Malformed Authorization header",
+			headers: http.Header{
+				"Authorization": []string{"InvalidBearer token"},
+			},
+			wantToken: "",
+			wantErr:   true,
+		},
 	}
 
-	for _, testCase := range tests {
-		header.Set(testCase.input[0], testCase.input[1])
-		result, err := auth.GetBearerToken(header)
-		if err != nil {
-			t.Fatalf("Error in GetBearerToken: %v\n", err)
-		}
-
-		if result != testCase.expectedOutput {
-			t.Fatalf("Result [%q] does not match expected output [%q]\n", result, testCase.expectedOutput)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotToken, err := auth.GetBearerToken(tt.headers)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetBearerToken() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotToken != tt.wantToken {
+				t.Errorf("GetBearerToken() gotToken = %v, want %v", gotToken, tt.wantToken)
+			}
+		})
 	}
 }
