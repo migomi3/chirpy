@@ -94,17 +94,22 @@ func (cfg *apiConfig) usersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
-	params := database.CreateUserParams{}
-	err := decoder.Decode(&params)
+	loginParams := LoginParameters{}
+	err := decoder.Decode(&loginParams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
 		return
 	}
 
-	params.HashedPassword, err = auth.HashPassword(params.HashedPassword)
+	hashedPassword, err := auth.HashPassword(loginParams.Password)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Password Hashing failed", err)
 		return
+	}
+
+	params := database.CreateUserParams{
+		Email:          loginParams.Email,
+		HashedPassword: hashedPassword,
 	}
 
 	u, err := cfg.db.CreateUser(r.Context(), params)
@@ -135,7 +140,7 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Not valid id", err)
+		respondWithError(w, http.StatusBadRequest, "Invalid id", err)
 		return
 	}
 
@@ -270,17 +275,17 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	id, err := auth.ValidateJWT(JWTTokenString, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unable to validate token", err)
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	loginParams := LoginParameters{}
 	err = decoder.Decode(&loginParams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
 		return
-	}
-
-	id, err := auth.ValidateJWT(JWTTokenString, cfg.secret)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Unable to validate token", err)
 	}
 
 	hashedPassword, err := auth.HashPassword(loginParams.Password)
@@ -307,4 +312,43 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 		Token:     JWTTokenString,
 	}
 	respondWithJSON(w, http.StatusOK, user)
+}
+
+func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request) {
+	JWTTokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error getting bearer token", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(JWTTokenString, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unable to validate token", err)
+		return
+	}
+
+	chirpId, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid id", err)
+		return
+	}
+
+	chirp, err := cfg.db.GetChirp(r.Context(), chirpId)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Chirp not found", err)
+		return
+	}
+
+	if chirp.UserID != userID {
+		respondWithError(w, http.StatusForbidden, "Can not delete chirp of another user", err)
+		return
+	}
+
+	err = cfg.db.DeleteChirp(r.Context(), chirp.ID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Chirp deletion failed", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

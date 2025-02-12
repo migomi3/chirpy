@@ -27,8 +27,8 @@ RETURNING id, created_at, updated_at, email, hashed_password
 `
 
 type CreateUserParams struct {
-	Email          string `json:"email"`
-	HashedPassword string `json:"password"`
+	Email          string
+	HashedPassword string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -82,7 +82,7 @@ func (q *Queries) GetUserFromID(ctx context.Context, id uuid.UUID) (User, error)
 	return i, err
 }
 
-const UpdateLoginInfo = `-- name: updateLoginInfo :one
+const updateLoginInfo = `-- name: UpdateLoginInfo :one
 UPDATE users
 SET email = $1, hashed_password = $2
 WHERE id = $3
@@ -96,7 +96,7 @@ type UpdateLoginInfoParams struct {
 }
 
 func (q *Queries) UpdateLoginInfo(ctx context.Context, arg UpdateLoginInfoParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, UpdateLoginInfo, arg.Email, arg.HashedPassword, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateLoginInfo, arg.Email, arg.HashedPassword, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
