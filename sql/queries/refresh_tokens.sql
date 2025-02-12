@@ -11,7 +11,8 @@ SELECT *
 FROM refresh_tokens
 WHERE token = $1;
 
--- name: RevokeToken :exec
+-- name: RevokeToken :one
 UPDATE refresh_tokens
 SET revoked_at = Now(), updated_at = Now()
-WHERE token = $1;
+WHERE token = $1
+RETURNING *;

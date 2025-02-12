@@ -42,6 +42,7 @@ func main() {
 	}
 	cfg.fileserverHits.Store(0)
 
+	mux.HandleFunc("PUT /api/users", cfg.updateUserHandler)
 	mux.HandleFunc("POST /api/revoke", cfg.revokeHandler)
 	mux.HandleFunc("POST /api/refresh", cfg.refreshHandler)
 	mux.HandleFunc("POST /api/login", cfg.loginHandler)

@@ -26,7 +26,6 @@ VALUES (gen_random_uuid(), Now(), Now(), $1, $2)
 RETURNING id, created_at, updated_at, body, user_id
 `
 
-//adding json here to avoid making redundant structs
 type CreateChirpParams struct {
 	Body   string
 	UserID uuid.UUID

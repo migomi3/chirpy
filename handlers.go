@@ -152,10 +152,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	decoder := json.NewDecoder(r.Body)
-	loginParams := struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
-	}{}
+	loginParams := LoginParameters{}
 	err := decoder.Decode(&loginParams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
@@ -257,11 +254,57 @@ func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = cfg.db.RevokeToken(r.Context(), refreshTokenString)
+	_, err = cfg.db.RevokeToken(r.Context(), refreshTokenString)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to revoke token", err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	JWTTokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error getting bearer token", err)
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	loginParams := LoginParameters{}
+	err = decoder.Decode(&loginParams)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
+		return
+	}
+
+	id, err := auth.ValidateJWT(JWTTokenString, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unable to validate token", err)
+	}
+
+	hashedPassword, err := auth.HashPassword(loginParams.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Password Hashing failed", err)
+		return
+	}
+
+	params := database.UpdateLoginInfoParams{
+		Email:          loginParams.Email,
+		HashedPassword: hashedPassword,
+		ID:             id,
+	}
+	u, err := cfg.db.UpdateLoginInfo(r.Context(), params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "User not found", err)
+	}
+
+	user := User{
+		ID:        u.ID,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+		Email:     u.Email,
+		Token:     JWTTokenString,
+	}
+	respondWithJSON(w, http.StatusOK, user)
 }
