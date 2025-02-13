@@ -41,6 +41,8 @@ func main() {
 		secret:   secret,
 	}
 	cfg.fileserverHits.Store(0)
+
+	mux.HandleFunc("POST /api/polka/webhooks", cfg.upgradeUserHandler)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.deleteChirpHandler)
 	mux.HandleFunc("PUT /api/users", cfg.updateUserHandler)
 	mux.HandleFunc("POST /api/revoke", cfg.revokeHandler)

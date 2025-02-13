@@ -45,8 +45,6 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
@@ -91,8 +89,6 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) usersHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	decoder := json.NewDecoder(r.Body)
 	loginParams := LoginParameters{}
 	err := decoder.Decode(&loginParams)
@@ -119,10 +115,11 @@ func (cfg *apiConfig) usersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := User{
-		ID:        u.ID,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-		Email:     u.Email,
+		ID:          u.ID,
+		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
+		Email:       u.Email,
+		IsChirpyRed: u.IsChirpyRed,
 	}
 
 	respondWithJSON(w, http.StatusCreated, user)
@@ -154,8 +151,6 @@ func (cfg *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	decoder := json.NewDecoder(r.Body)
 	loginParams := LoginParameters{}
 	err := decoder.Decode(&loginParams)
@@ -207,14 +202,13 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        u.Email,
 		Token:        JWTTokenString,
 		RefreshToken: refreshString,
+		IsChirpyRed:  u.IsChirpyRed,
 	}
 
 	respondWithJSON(w, http.StatusOK, user)
 }
 
 func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	refreshTokenString, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Error getting bearer token", err)
@@ -305,11 +299,12 @@ func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	user := User{
-		ID:        u.ID,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-		Email:     u.Email,
-		Token:     JWTTokenString,
+		ID:          u.ID,
+		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
+		Email:       u.Email,
+		Token:       JWTTokenString,
+		IsChirpyRed: u.IsChirpyRed,
 	}
 	respondWithJSON(w, http.StatusOK, user)
 }
@@ -347,6 +342,34 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 	err = cfg.db.DeleteChirp(r.Context(), chirp.ID)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Chirp deletion failed", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (cfg *apiConfig) upgradeUserHandler(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	requestBody := struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserId uuid.UUID `json:"user_id"`
+		}
+	}{}
+	err := decoder.Decode(&requestBody)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
+		return
+	}
+
+	if requestBody.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	_, err = cfg.db.UpgradeUser(r.Context(), requestBody.Data.UserId)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "User not found", err)
 		return
 	}
 
