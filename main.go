@@ -17,13 +17,16 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	secret         string
+	polkaKey       string
 }
 
 func main() {
 	godotenv.Load()
+
 	dbURL := os.Getenv("DB_URL")
 	pf := os.Getenv("PLATFORM")
 	secret := os.Getenv("SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalln(err)
@@ -39,6 +42,7 @@ func main() {
 		db:       database.New(db),
 		platform: pf,
 		secret:   secret,
+		polkaKey: polkaKey,
 	}
 	cfg.fileserverHits.Store(0)
 

@@ -349,6 +349,11 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *apiConfig) upgradeUserHandler(w http.ResponseWriter, r *http.Request) {
+	key, err := auth.GetAPIKey(r.Header)
+	if key != cfg.polkaKey {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized to access this endpoint", err)
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	requestBody := struct {
 		Event string `json:"event"`
@@ -356,7 +361,7 @@ func (cfg *apiConfig) upgradeUserHandler(w http.ResponseWriter, r *http.Request)
 			UserId uuid.UUID `json:"user_id"`
 		}
 	}{}
-	err := decoder.Decode(&requestBody)
+	err = decoder.Decode(&requestBody)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Decoding error", err)
 		return
