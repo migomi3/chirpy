@@ -125,12 +125,31 @@ func (cfg *apiConfig) usersHandler(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusCreated, user)
 }
 
-func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.db.GetChirps(r.Context())
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
-		return
+func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	var chirps []database.Chirp
+	var err error
+
+	authorID := r.URL.Query().Get("author_id")
+	if authorID != "" {
+		id, err := uuid.Parse(authorID)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid id", err)
+			return
+		}
+
+		chirps, err = cfg.db.GetChirpsFromUser(r.Context(), id)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
+			return
+		}
+	} else {
+		chirps, err = cfg.db.GetAllChirps(r.Context())
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
+			return
+		}
 	}
+
 	respondWithJSON(w, http.StatusOK, chirps)
 }
 
